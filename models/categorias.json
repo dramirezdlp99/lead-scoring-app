@@ -1,0 +1,60 @@
+{
+ "origen": [
+  "API",
+  "Landing Page Submission",
+  "Lead Add Form"
+ ],
+ "fuente": [
+  "Direct Traffic",
+  "Google",
+  "Olark Chat",
+  "Organic Search",
+  "Reference",
+  "Referral Sites",
+  "Welingak Website"
+ ],
+ "ultima_actividad": [
+  "Converted to Lead",
+  "Desconocido",
+  "Email Bounced",
+  "Email Link Clicked",
+  "Email Opened",
+  "Form Submitted on Website",
+  "Olark Chat Conversation",
+  "Page Visited on Website",
+  "SMS Sent",
+  "Unreachable"
+ ],
+ "especializacion": [
+  "Banking, Investment And Insurance",
+  "Business Administration",
+  "Desconocido",
+  "E-COMMERCE",
+  "Finance Management",
+  "Healthcare Management",
+  "Hospitality Management",
+  "Human Resource Management",
+  "IT Projects Management",
+  "International Business",
+  "Marketing Management",
+  "Media and Advertising",
+  "Operations Management",
+  "Retail Management",
+  "Supply Chain Management",
+  "Travel and Tourism"
+ ],
+ "ocupacion": [
+  "Desconocido",
+  "Student",
+  "Unemployed",
+  "Working Professional"
+ ],
+ "ciudad": [
+  "Desconocido",
+  "Mumbai",
+  "Other Cities",
+  "Other Cities of Maharashtra",
+  "Other Metro Cities",
+  "Thane & Outskirts"
+ ]
+}
