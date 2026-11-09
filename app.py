@@ -1,6 +1,6 @@
 """
 Lead Scoring App - Streamlit
-Ranking de leads · Sistema de priorización · Dashboard comercial
+Ranking de leads, sistema de priorización y dashboard comercial.
 Ejecutar local:  streamlit run app.py
 """
 import json
@@ -11,18 +11,236 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 import streamlit as st
 
 import lead_utils as U
 
 BASE = Path(__file__).parent
-COLORES = {"🔥 Caliente": "#dc2626", "🌤️ Tibio": "#f59e0b", "❄️ Frío": "#3b82f6"}
+st.set_page_config(page_title="LeadScore", page_icon="🎯", layout="wide", initial_sidebar_state="collapsed")
+
+# ============================================================
+# Sistema de diseño (inspirado en un dashboard de Dribbble:
+# fondo degradado cálido, tarjetas de vidrio, acento amarillo y carbón)
+# ============================================================
+INK = "#1F1F1F"
+CARBON = "#2B2B2B"
+MUTED = "#8A877F"
+LINE = "#E6E2D8"
+YEL = "#F5C935"
+YEL_SOFT = "#FBE7A1"
+GRIS = "#CFCAC0"
+
 ORDEN_PRIO = ["🔥 Caliente", "🌤️ Tibio", "❄️ Frío"]
+COLORES = {"🔥 Caliente": YEL, "🌤️ Tibio": CARBON, "❄️ Frío": GRIS}
+NOMBRE = {"🔥 Caliente": "Calientes", "🌤️ Tibio": "Tibios", "❄️ Frío": "Fríos"}
+SINGULAR = {"🔥 Caliente": "caliente", "🌤️ Tibio": "tibio", "❄️ Frío": "frío"}
+RANGO = {"🔥 Caliente": "Score de 80 a 100", "🌤️ Tibio": "Score de 50 a 79", "❄️ Frío": "Score menor a 50"}
+CORTO = {"Welingak Website": "Welingak", "Direct Traffic": "Directo", "Organic Search": "Orgánico",
+         "Referral Sites": "Referidos", "Olark Chat": "Olark", "Reference": "Referencia", "Google": "Google",
+         "Otros": "Otros"}
+FUENTE = "Outfit, system-ui, sans-serif"
 
-st.set_page_config(page_title="Lead Scoring", page_icon="🎯", layout="wide")
+pio.templates["leads"] = go.layout.Template(layout=dict(
+    font=dict(family=FUENTE, size=13, color=INK),
+    title=dict(font=dict(family=FUENTE, size=18, color=INK, weight=400), x=0.02, xanchor="left", y=0.95),
+    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    colorway=[CARBON, YEL, GRIS, MUTED],
+    xaxis=dict(gridcolor="rgba(0,0,0,0)", zerolinecolor=LINE, linecolor="rgba(0,0,0,0)",
+               tickfont=dict(color=MUTED), automargin=True),
+    yaxis=dict(gridcolor=LINE, gridwidth=1, griddash="dot", zerolinecolor=LINE, linecolor="rgba(0,0,0,0)",
+               tickfont=dict(color=MUTED), automargin=True),
+    legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color=MUTED)),
+    margin=dict(l=18, r=22, t=64, b=18),
+    hoverlabel=dict(bgcolor=CARBON, bordercolor=CARBON, font=dict(family=FUENTE, color="white")),
+))
+pio.templates.default = "leads"
+
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
+
+html, body, .stApp, .stMarkdown, button, input, textarea, select, label, p, li, span, div {
+  font-family: 'Outfit', system-ui, sans-serif;
+}
+.stApp {
+  background: linear-gradient(125deg, #E7E8EA 0%, #EFEEEA 38%, #F6F0DC 70%, #FBEFC4 100%);
+  background-attachment: fixed; color: #1F1F1F;
+}
+header[data-testid="stHeader"] { background: transparent; }
+.block-container { padding-top: 1.6rem; max-width: 1340px; }
+h1, h2, h3, h4 { font-family: 'Outfit', sans-serif; color: #1F1F1F; font-weight: 400; }
+
+/* Barra lateral */
+section[data-testid="stSidebar"] { background: rgba(255,255,255,.65); backdrop-filter: blur(14px); border-right: 0; }
+section[data-testid="stSidebar"] h2 { font-weight: 400; font-size: 1.3rem; }
+
+/* Navegación en píldoras (pestañas) */
+div[data-testid="stTabs"] [role="tablist"] {
+  background: rgba(255,255,255,.75); border-radius: 999px; padding: 6px; gap: 4px; width: fit-content;
+  border: 1px solid rgba(255,255,255,.95); margin-bottom: 1.2rem; box-shadow: none;
+}
+div[data-testid="stTabs"] [role="tablist"]::before, div[data-testid="stTabs"] [role="tablist"]::after,
+div[data-testid="stTabs"] [role="tab"]::before, div[data-testid="stTabs"] [role="tab"]::after { display: none !important; }
+div[data-testid="stTabs"] [role="tablist"] > :not([role="tab"]) { display: none !important; }
+div[data-testid="stTabs"] [role="tab"] {
+  border-radius: 999px !important; padding: .5rem 1.25rem !important; margin: 0 !important; color: #4A4843;
+  background: transparent; border: 0 !important; box-shadow: none !important; cursor: pointer;
+}
+div[data-testid="stTabs"] [role="tab"] p { font-size: .95rem; color: inherit !important; margin: 0; }
+div[data-testid="stTabs"] [role="tab"]:hover { background: rgba(0,0,0,.05); }
+div[data-testid="stTabs"] [role="tab"][aria-selected="true"] { background: #2B2B2B !important; color: #FFFFFF !important; }
+div[data-testid="stTabs"] [role="tab"]:focus-visible { outline: 3px solid #F5C935; }
+
+/* Tarjetas de vidrio para gráficas, tablas, formularios */
+div[data-testid="stPlotlyChart"] {
+  background: rgba(255,255,255,.72); border: 1px solid rgba(255,255,255,.95); border-radius: 26px;
+  overflow: hidden; backdrop-filter: blur(10px);
+}
+div[data-testid="stDataFrame"] { border-radius: 18px; overflow: hidden; border: 1px solid rgba(255,255,255,.95); }
+div[data-testid="stForm"] {
+  background: rgba(255,255,255,.72); border: 1px solid rgba(255,255,255,.95); border-radius: 26px; padding: 1.5rem 1.6rem;
+}
+div[data-testid="stExpander"] details { background: rgba(255,255,255,.6); border: 1px solid rgba(255,255,255,.95); border-radius: 18px; }
+div[data-baseweb="select"] > div, div[data-baseweb="input"], .stNumberInput input { border-radius: 14px !important; }
+
+/* Botones en píldora */
+div[data-testid="stFormSubmitButton"] button, .stButton button {
+  background: #2B2B2B; color: #fff; border: 0; border-radius: 999px; padding: .6rem 1.5rem; font-weight: 500;
+}
+div[data-testid="stFormSubmitButton"] button:hover { background: #F5C935; color: #1F1F1F; }
+div[data-testid="stDownloadButton"] button { border-radius: 999px; background: rgba(255,255,255,.8); border: 1px solid #E6E2D8; }
+button:focus-visible { outline: 3px solid #F5C935 !important; outline-offset: 2px; }
+
+/* ---------- Encabezado ---------- */
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.4rem; }
+.logo { border: 1.5px solid #2B2B2B; border-radius: 999px; padding: .35rem 1.1rem; font-size: 1.15rem; font-weight: 400; }
+.pills { display: flex; gap: .5rem; flex-wrap: wrap; }
+.pill { background: rgba(255,255,255,.75); border-radius: 999px; padding: .45rem 1rem; font-size: .88rem; color: #4A4843;
+  border: 1px solid rgba(255,255,255,.95); }
+.pill b { font-weight: 600; color: #1F1F1F; }
+
+.hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 2rem; flex-wrap: wrap; margin-bottom: 1.6rem; }
+.hero h1 { font-size: clamp(2.2rem, 3.6vw, 3.1rem); font-weight: 300; letter-spacing: -0.02em; margin: 0 0 1rem; padding: 0; line-height: 1.05; }
+.temp { display: flex; gap: 6px; align-items: flex-end; min-width: 320px; flex: 1; max-width: 640px; }
+.temp .seg { display: flex; flex-direction: column; gap: 6px; min-width: 70px; }
+.temp .lab { font-size: .82rem; color: #4A4843; white-space: nowrap; }
+.temp .bar { height: 40px; border-radius: 999px; display: flex; align-items: center; padding: 0 14px; font-size: .82rem; font-weight: 500; }
+.stats { display: flex; gap: 2.2rem; flex-wrap: wrap; }
+.stat .n { font-size: clamp(2.8rem, 4.6vw, 4.1rem); font-weight: 300; letter-spacing: -0.04em; line-height: 1; }
+.stat .k { font-size: .82rem; color: #6F6C64; margin-top: .3rem; display: flex; align-items: center; gap: .4rem; }
+.stat .k i { width: 18px; height: 18px; border-radius: 50%; background: rgba(255,255,255,.85); display: inline-block; border: 1px solid #E6E2D8; }
+
+/* ---------- Tarjetas HTML ---------- */
+.card { background: rgba(255,255,255,.72); border: 1px solid rgba(255,255,255,.95); border-radius: 26px; padding: 1.2rem 1.35rem;
+  height: 370px; backdrop-filter: blur(10px); display: flex; flex-direction: column; }
+.card h4 { font-size: 1.12rem; font-weight: 400; margin: 0; padding: 0; color: inherit; }
+.card .sub { font-size: .8rem; color: #8A877F; }
+.card.dark { background: #2B2B2B; color: #fff; border-color: #2B2B2B; }
+.card.dark .sub { color: #A8A59E; }
+.card .head { display: flex; justify-content: space-between; align-items: flex-start; gap: .6rem; }
+.card .big { font-size: 2.3rem; font-weight: 300; letter-spacing: -0.03em; line-height: 1; }
+
+.lista { margin-top: 1rem; display: flex; flex-direction: column; gap: .75rem; }
+.item { display: flex; align-items: center; gap: .8rem; }
+.item .ic { width: 38px; height: 38px; border-radius: 50%; border: 1px solid #4A4A4A; display: flex; align-items: center;
+  justify-content: center; font-size: .85rem; color: #fff; flex-shrink: 0; }
+.item .ic.on { background: #fff; color: #2B2B2B; border-color: #fff; }
+.item .tx { flex: 1; line-height: 1.2; }
+.item .tx b { font-weight: 500; font-size: .92rem; }
+.item .tx span { display: block; font-size: .76rem; color: #A8A59E; }
+.item .dot { width: 18px; height: 18px; border-radius: 50%; background: #F5C935; flex-shrink: 0; }
+
+.niveles { display: flex; gap: 6px; margin-top: auto; }
+.niveles .col { display: flex; flex-direction: column; gap: 6px; }
+.niveles .pc { font-size: .8rem; color: #4A4843; }
+.niveles .bl { height: 46px; border-radius: 14px; display: flex; align-items: flex-end; padding: 0 0 8px 12px; font-size: .8rem; font-weight: 500; }
+.rayas { background: repeating-linear-gradient(-45deg, #D8D3C8 0 2px, rgba(255,255,255,.6) 2px 8px); color: #4A4843; }
+
+.tabla-p { margin-top: 1.3rem; display: flex; flex-direction: column; }
+.fila-p { display: grid; grid-template-columns: 1.4fr 1fr 1fr; align-items: center; padding: .55rem 0;
+  border-bottom: 1px dashed #E6E2D8; font-size: .9rem; }
+.fila-p span:not(.nm) { text-align: right; font-weight: 500; }
+.fila-p.enc { font-size: .76rem; color: #8A877F; padding-top: 0; }
+.fila-p.enc span { font-weight: 400 !important; }
+.fila-p.enc span:first-child { text-align: left; }
+.fila-p .nm { display: flex; align-items: center; gap: .55rem; }
+.fila-p .sq { width: 14px; height: 14px; border-radius: 5px; display: inline-block; flex-shrink: 0; }
+.barra-p { display: flex; gap: 4px; height: 40px; margin-top: auto; }
+.barra-p .seg-b { border-radius: 12px; min-width: 10px; }
+
+.ring { display: flex; align-items: center; justify-content: center; flex: 1; }
+
+/* Ranking */
+.top5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: .8rem; margin-bottom: 1.2rem; }
+.lead { background: rgba(255,255,255,.72); border: 1px solid rgba(255,255,255,.95); border-radius: 22px; padding: 1rem 1.1rem; }
+.lead.dark { background: #2B2B2B; color: #fff; border-color: #2B2B2B; }
+.lead .pos { font-size: .78rem; color: #8A877F; }
+.lead .sc { font-size: 2.3rem; font-weight: 300; letter-spacing: -0.03em; line-height: 1.1; }
+.lead .id { font-weight: 500; font-size: .92rem; }
+.lead .meta { font-size: .78rem; color: #8A877F; margin-top: .25rem; line-height: 1.35; }
+.lead.dark .meta, .lead.dark .pos { color: #A8A59E; }
+.lead .mini { height: 6px; border-radius: 6px; background: rgba(0,0,0,.08); margin-top: .7rem; overflow: hidden; }
+.lead.dark .mini { background: rgba(255,255,255,.15); }
+.lead .mini div { height: 100%; border-radius: 6px; background: #F5C935; }
+
+/* Priorización */
+.nivel { border-radius: 26px; padding: 1.4rem 1.5rem; height: 100%; }
+.nivel h4 { margin: 0; font-size: 1.4rem; font-weight: 400; color: inherit; }
+.nivel .r { font-size: .86rem; opacity: .75; }
+.nivel .fila { display: flex; gap: 2rem; margin: 1.2rem 0; }
+.nivel .fila .v { font-size: 2.4rem; font-weight: 300; letter-spacing: -0.03em; line-height: 1; }
+.nivel .fila .k { font-size: .8rem; opacity: .75; }
+.nivel .acc { border-radius: 999px; padding: .55rem 1rem; font-size: .88rem; display: inline-block; }
+
+.resultado { background: rgba(255,255,255,.72); border: 1px solid rgba(255,255,255,.95); border-radius: 26px; padding: 1.2rem 1.4rem;
+  display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
+.resultado .t { font-size: 1.6rem; font-weight: 300; }
+.resultado .a { display: inline-block; margin-top: .6rem; background: #2B2B2B; color: #fff; border-radius: 999px; padding: .5rem 1rem; font-size: .9rem; }
+
+.seccion { margin: 1.4rem 0 .6rem; }
+.seccion h3 { margin: 0; font-size: 1.45rem; font-weight: 400; padding: 0; }
+.seccion p { color: #6F6C64; margin: .15rem 0 0; font-size: .93rem; }
+
+@media (max-width: 900px) {
+  .top5 { grid-template-columns: repeat(2, 1fr); }
+  .card { height: auto; min-height: 320px; }
+}
+</style>
+""", unsafe_allow_html=True)
 
 
-# ---------- Carga (cacheada: se lee una sola vez) ----------
+# ============================================================
+# Componentes
+# ============================================================
+def seccion(titulo, texto=""):
+    st.markdown(f'<div class="seccion"><h3>{titulo}</h3>{f"<p>{texto}</p>" if texto else ""}</div>',
+                unsafe_allow_html=True)
+
+
+def anillo(pct, grande, pequeno, color=YEL, tam=200, fondo="#EFECE4", texto=INK):
+    """Anillo de progreso en SVG con marcas alrededor (estilo 'time tracker')."""
+    r, c = 62, 2 * np.pi * 62
+    arco = max(min(pct, 100), 0) / 100 * c
+    return f"""
+    <svg viewBox="0 0 180 180" width="{tam}" height="{tam}" role="img" aria-label="{grande} {pequeno}">
+      <circle cx="90" cy="90" r="82" fill="none" stroke="{GRIS}" stroke-width="7" stroke-dasharray="1.3 4.1"/>
+      <circle cx="90" cy="90" r="{r}" fill="none" stroke="{fondo}" stroke-width="15"/>
+      <circle cx="90" cy="90" r="{r}" fill="none" stroke="{color}" stroke-width="15" stroke-linecap="round"
+              stroke-dasharray="{arco:.1f} {c:.1f}" transform="rotate(-90 90 90)"/>
+      <text x="90" y="92" text-anchor="middle" font-family="Outfit, sans-serif" font-size="32" font-weight="300" fill="{texto}">{grande}</text>
+      <text x="90" y="114" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" fill="{MUTED}">{pequeno}</text>
+    </svg>"""
+
+
+def grafica(fig, alto):
+    fig.update_layout(height=alto)
+    st.plotly_chart(fig, width="stretch", theme=None, config={"displayModeBar": False})
+
+
+# ============================================================
+# Carga de modelo y datos (cacheada)
+# ============================================================
 def entrenar_modelo():
     """Reentrena el mejor modelo (mismos hiperparámetros del notebook).
     Se usa si el .pkl no se puede abrir en otro sistema operativo o versión de librerías."""
@@ -77,15 +295,15 @@ def puntuar(raw: pd.DataFrame) -> pd.DataFrame:
     return out.sort_values("score", ascending=False)
 
 
-# ---------- Barra lateral: filtros globales ----------
-st.sidebar.title("🎯 Lead Scoring")
-st.sidebar.caption(f"Modelo: **{MET['mejor_modelo']}** · ROC-AUC test: **{MET['auc_test']:.3f}**")
-st.sidebar.divider()
-st.sidebar.subheader("Filtros")
-f_fuente = st.sidebar.multiselect("Fuente", sorted(df["fuente"].unique()))
-f_origen = st.sidebar.multiselect("Origen", sorted(df["origen"].unique()))
-f_ocup = st.sidebar.multiselect("Ocupación", sorted(df["ocupacion"].unique()))
-f_prio = st.sidebar.multiselect("Prioridad", ORDEN_PRIO)
+# ============================================================
+# Filtros (menú lateral)
+# ============================================================
+with st.sidebar:
+    st.markdown("## Filtrar leads")
+    f_fuente = st.multiselect("Fuente", sorted(df["fuente"].unique()), placeholder="Todas")
+    f_origen = st.multiselect("Origen", sorted(df["origen"].unique()), placeholder="Todos")
+    f_ocup = st.multiselect("Ocupación", sorted(df["ocupacion"].unique()), placeholder="Todas")
+    f_prio = st.multiselect("Prioridad", ORDEN_PRIO, placeholder="Todas")
 
 dff = df.copy()
 if f_fuente:
@@ -96,118 +314,228 @@ if f_ocup:
     dff = dff[dff["ocupacion"].isin(f_ocup)]
 if f_prio:
     dff = dff[dff["prioridad"].isin(f_prio)]
-st.sidebar.caption(f"{len(dff):,} de {len(df):,} leads")
+st.sidebar.caption(f"Mostrando {len(dff):,} de {len(df):,} leads")
 
-st.title("🎯 Lead Scoring: predicción de conversión de leads")
-st.caption("Clasifica cada lead según su probabilidad de convertirse en cliente, para que ventas priorice donde está el dinero.")
+# ============================================================
+# Encabezado
+# ============================================================
+filtros_activos = sum(bool(f) for f in (f_fuente, f_origen, f_ocup, f_prio))
+st.markdown(f"""
+<div class="topbar">
+  <div class="logo">LeadScore</div>
+  <div class="pills">
+    <div class="pill">Modelo <b>{MET['mejor_modelo']}</b></div>
+    <div class="pill">ROC-AUC <b>{MET['auc_test']:.3f}</b></div>
+    <div class="pill">{"Filtros activos: <b>" + str(filtros_activos) + "</b>" if filtros_activos else "Filtros en el menú lateral"}</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
-tab_dash, tab_rank, tab_prio, tab_mod = st.tabs(
-    ["📊 Dashboard comercial", "🏆 Ranking de leads", "🎯 Priorización", "🧠 Modelo"])
+if dff.empty:
+    st.warning("Ningún lead cumple esos filtros. Quita alguno en el menú lateral.")
+    st.stop()
 
-# ======================= DASHBOARD =======================
+total = len(dff)
+pend = dff[dff["Converted"] == 0]
+cal_pend = pend[pend["prioridad"] == "🔥 Caliente"].sort_values("score", ascending=False)
+
+temp = ""
+for p in ORDEN_PRIO:
+    pct = (dff["prioridad"] == p).mean() * 100
+    estilo = {"🔥 Caliente": f"background:{YEL};color:{INK}",
+              "🌤️ Tibio": f"background:{CARBON};color:#fff",
+              "❄️ Frío": ""}[p]
+    clase = "bar rayas" if p == "❄️ Frío" else "bar"
+    temp += (f'<div class="seg" style="flex:{max(pct, 12):.1f}"><div class="lab">{NOMBRE[p]}</div>'
+             f'<div class="{clase}" style="{estilo}">{pct:.0f}%</div></div>')
+
+st.markdown(f"""
+<div class="hero">
+  <div style="flex:1;min-width:320px">
+    <h1>Hola, equipo de ventas</h1>
+    <div class="temp">{temp}</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="n">{total:,}</div><div class="k"><i></i>Leads</div></div>
+    <div class="stat"><div class="n">{dff['Converted'].mean()*100:.0f}%</div><div class="k"><i></i>Conversión</div></div>
+    <div class="stat"><div class="n">{len(cal_pend):,}</div><div class="k"><i></i>Calientes por llamar</div></div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+tab_dash, tab_rank, tab_prio, tab_mod = st.tabs(["Dashboard", "Ranking", "Priorización", "Modelo"])
+
+# ============================================================
+# DASHBOARD
+# ============================================================
 with tab_dash:
-    if dff.empty:
-        st.warning("No hay leads con esos filtros.")
-    else:
-        c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("Leads", f"{len(dff):,}")
-        c2.metric("Conversión real", f"{dff['Converted'].mean()*100:.1f}%")
-        c3.metric("Score promedio", f"{dff['score'].mean():.1f}")
-        c4.metric("🔥 Calientes", f"{(dff['prioridad']=='🔥 Caliente').sum():,}")
+    c1, c2, c3, c4 = st.columns([1.25, 1, 1, 1.1], gap="small")
+
+    # 1) Piruletas: conversión por fuente
+    with c1:
+        t = dff.groupby("fuente")["Converted"].agg(["mean", "size"]).reset_index()
+        t = t[t["size"] >= 20].sort_values("mean", ascending=False).head(7)
+        t["pct"] = t["mean"] * 100
+        t["nom"] = t["fuente"].map(CORTO).fillna(t["fuente"])
+        colores = [YEL if i == 0 else CARBON for i in range(len(t))]
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=t["nom"], y=t["pct"], width=0.07, marker_color=colores, hoverinfo="skip"))
+        fig.add_trace(go.Scatter(x=t["nom"], y=t["pct"], mode="markers", marker=dict(size=11, color=colores),
+                                 customdata=t["size"], hovertemplate="%{x}<br>%{y:.1f}% conversión<br>%{customdata} leads<extra></extra>"))
+        top = t.iloc[0]
+        fig.add_annotation(x=top["nom"], y=top["pct"], text=f"{top['pct']:.0f}%", showarrow=False, yshift=22,
+                           bgcolor=YEL, borderpad=5, font=dict(size=12, color=INK))
+        fig.update_layout(title="Conversión por fuente", showlegend=False,
+                          yaxis=dict(range=[0, 118], ticksuffix="%", showgrid=True, dtick=25),
+                          xaxis=dict(tickangle=-35, tickfont=dict(size=11)))
+        grafica(fig, 370)
+
+    # 2) Anillo: clientes capturados en el top 30 %
+    with c2:
+        o = dff.sort_values("score", ascending=False)
+        cap = o["Converted"].iloc[:max(int(len(o) * 0.3), 1)].sum() / max(o["Converted"].sum(), 1) * 100
+        st.markdown(f"""
+        <div class="card">
+          <div class="head"><div><h4>Efectividad del ranking</h4>
+          <div class="sub">Clientes que están en el top 30 % de la lista</div></div></div>
+          <div class="ring">{anillo(cap, f"{cap:.0f}%", "de los clientes")}</div>
+          <div class="sub" style="text-align:center">Al azar, el top 30 % tendría solo el 30 %</div>
+        </div>""", unsafe_allow_html=True)
+
+    # 3) Niveles de prioridad (estilo 'onboarding')
+    with c3:
         cal = dff[dff["prioridad"] == "🔥 Caliente"]
-        c5.metric("Conversión de calientes", f"{cal['Converted'].mean()*100:.1f}%" if len(cal) else "-")
+        conv_cal = cal["Converted"].mean() * 100 if len(cal) else 0
+        filas, barra = "", ""
+        for p in ORDEN_PRIO:
+            sub = dff[dff["prioridad"] == p]
+            pct = len(sub) / len(dff) * 100
+            conv = sub["Converted"].mean() * 100 if len(sub) else 0
+            muestra = {"🔥 Caliente": f"background:{YEL}", "🌤️ Tibio": f"background:{CARBON}", "❄️ Frío": ""}[p]
+            clase = "sq rayas" if p == "❄️ Frío" else "sq"
+            filas += (f'<div class="fila-p"><span class="nm"><i class="{clase}" style="{muestra}"></i>{NOMBRE[p]}</span>'
+                      f'<span>{pct:.0f}%</span><span>{conv:.0f}%</span></div>')
+            if pct > 0:
+                seg = "seg-b rayas" if p == "❄️ Frío" else "seg-b"
+                barra += f'<div class="{seg}" style="flex:{pct:.2f};{muestra}" title="{NOMBRE[p]}: {pct:.1f}%"></div>'
+        st.markdown(f"""
+        <div class="card">
+          <div class="head"><div><h4>Priorización</h4><div class="sub">Conversión real de los calientes</div></div>
+          <div class="big">{conv_cal:.0f}%</div></div>
+          <div class="tabla-p">
+            <div class="fila-p enc"><span>Nivel</span><span>Leads</span><span>Compran</span></div>
+            {filas}
+          </div>
+          <div class="barra-p">{barra}</div>
+        </div>""", unsafe_allow_html=True)
 
-        col1, col2 = st.columns(2)
-        with col1:
-            cnt = dff["prioridad"].value_counts().reindex(ORDEN_PRIO).fillna(0).reset_index()
-            cnt.columns = ["prioridad", "leads"]
-            fig = px.pie(cnt, names="prioridad", values="leads", hole=0.55, color="prioridad",
-                         color_discrete_map=COLORES, title="Leads por prioridad")
-            st.plotly_chart(fig, width="stretch")
-        with col2:
-            conv = dff.groupby("prioridad")["Converted"].mean().reindex(ORDEN_PRIO).mul(100).round(1).reset_index()
-            fig = px.bar(conv, x="prioridad", y="Converted", color="prioridad", color_discrete_map=COLORES,
-                         text="Converted", title="Conversión real por prioridad (%)",
-                         labels={"Converted": "% conversión", "prioridad": ""})
-            fig.update_layout(showlegend=False)
-            st.plotly_chart(fig, width="stretch")
+    # 4) Tarjeta oscura: a quién llamar hoy
+    with c4:
+        items = ""
+        for i, (_, x) in enumerate(cal_pend.head(5).iterrows(), start=1):
+            items += (f'<div class="item"><div class="ic{" on" if i == 1 else ""}">{i}</div>'
+                      f'<div class="tx"><b>Lead {int(x[U.ID_COL])}</b>'
+                      f'<span>{CORTO.get(x["fuente"], x["fuente"])}, score {x["score"]:.1f}</span></div>'
+                      f'<div class="dot"></div></div>')
+        if not items:
+            items = '<div class="sub" style="margin-top:1rem">No hay leads calientes pendientes con estos filtros.</div>'
+        st.markdown(f"""
+        <div class="card dark">
+          <div class="head"><h4>Llamar hoy</h4><div class="big">{min(5, len(cal_pend))}/{len(cal_pend)}</div></div>
+          <div class="sub">Calientes que aún no compran</div>
+          <div class="lista">{items}</div>
+        </div>""", unsafe_allow_html=True)
 
-        col3, col4 = st.columns(2)
-        with col3:
-            t = dff.groupby("fuente").agg(leads=("Converted", "size"), conversion=("Converted", "mean"),
-                                         score=("score", "mean")).reset_index()
-            t["conversion"] = (t["conversion"] * 100).round(1)
-            fig = px.bar(t.sort_values("conversion"), x="conversion", y="fuente", orientation="h",
-                         color="score", color_continuous_scale="Blues", text="conversion",
-                         hover_data=["leads"], title="Conversión por fuente (%)",
-                         labels={"conversion": "% conversión", "fuente": "", "score": "Score prom."})
-            st.plotly_chart(fig, width="stretch")
-        with col4:
-            t = dff.groupby("ultima_actividad").agg(leads=("Converted", "size"),
-                                                   conversion=("Converted", "mean")).reset_index()
-            t["conversion"] = (t["conversion"] * 100).round(1)
-            fig = px.bar(t.sort_values("conversion"), x="conversion", y="ultima_actividad", orientation="h",
-                         text="conversion", hover_data=["leads"], title="Conversión por última actividad (%)",
-                         labels={"conversion": "% conversión", "ultima_actividad": ""},
-                         color_discrete_sequence=["#16a34a"])
-            st.plotly_chart(fig, width="stretch")
+    st.write("")
+    d1, d2 = st.columns([1.15, 1], gap="small")
+    with d1:
+        fig = px.histogram(dff, x="score", color="prioridad", nbins=40, color_discrete_map=COLORES,
+                           category_orders={"prioridad": ORDEN_PRIO}, labels={"score": "Score", "prioridad": ""})
+        fig.for_each_trace(lambda tr: tr.update(name=NOMBRE[tr.name]))
+        fig.update_traces(marker_line_width=0)
+        fig.update_layout(title="Cómo se reparten los scores", bargap=0.18, yaxis_title=None,
+                          legend=dict(orientation="h", y=1.08, x=1, xanchor="right", yanchor="bottom"))
+        grafica(fig, 340)
+    with d2:
+        t = dff.groupby("ultima_actividad")["Converted"].agg(["mean", "size"]).reset_index()
+        t = t[t["size"] >= 20].sort_values("mean").tail(8)
+        t["pct"] = t["mean"] * 100
+        colores = [YEL if i == len(t) - 1 else CARBON for i in range(len(t))]
+        fig = go.Figure(go.Bar(x=t["pct"], y=t["ultima_actividad"], orientation="h", marker_color=colores,
+                               marker_cornerradius=8, width=0.55, text=t["pct"].map("{:.0f}%".format),
+                               textposition="outside", cliponaxis=False, customdata=t["size"],
+                               hovertemplate="%{y}<br>%{x:.1f}% conversión<br>%{customdata} leads<extra></extra>"))
+        fig.update_layout(title="Conversión según la última actividad",
+                          xaxis=dict(range=[0, 112], ticksuffix="%", showgrid=False),
+                          yaxis=dict(showgrid=False))
+        grafica(fig, 340)
 
-        col5, col6 = st.columns(2)
-        with col5:
-            fig = px.histogram(dff, x="score", color="prioridad", nbins=40, color_discrete_map=COLORES,
-                               category_orders={"prioridad": ORDEN_PRIO},
-                               title="Distribución de los scores", labels={"score": "Score (0-100)"})
-            st.plotly_chart(fig, width="stretch")
-        with col6:
-            # Curva de captura: si ventas llama al top X% del ranking, ¿qué % de clientes captura?
-            o = dff.sort_values("score", ascending=False)
-            if o["Converted"].sum() > 0:
-                x = np.arange(1, len(o) + 1) / len(o) * 100
-                yv = o["Converted"].cumsum() / o["Converted"].sum() * 100
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(x=x, y=yv, name="Con el modelo", line=dict(width=3, color="#2563eb")))
-                fig.add_trace(go.Scatter(x=[0, 100], y=[0, 100], name="Sin modelo (al azar)",
-                                         line=dict(dash="dash", color="gray")))
-                fig.update_layout(title="Curva de captura (ganancia)", xaxis_title="% de leads contactados (top del ranking)",
-                                  yaxis_title="% de clientes capturados")
-                st.plotly_chart(fig, width="stretch")
-
-# ======================= RANKING =======================
+# ============================================================
+# RANKING
+# ============================================================
 with tab_rank:
-    st.subheader("🏆 Ranking de leads por probabilidad de conversión")
-    c1, c2 = st.columns([1, 1])
-    solo_pend = c1.toggle("Solo leads pendientes (aún no convertidos)", value=True)
-    top_n = c2.slider("Mostrar top", 10, 500, 50, step=10)
+    a, b = st.columns([1, 1])
+    solo_pend = a.toggle("Solo leads pendientes (aún no compran)", value=True)
+    top_n = b.slider("Cantidad de leads en la tabla", 10, 500, 50, step=10)
     r = dff[dff["Converted"] == 0] if solo_pend else dff
-    r = r.sort_values("score", ascending=False).head(top_n)
-    vista = r[["ranking", U.ID_COL, "score", "prioridad", "fuente", "origen", "ocupacion",
-               "ultima_actividad", "tiempo_web", "visitas", "Converted"]].rename(columns={
-        U.ID_COL: "Lead", "ultima_actividad": "última actividad", "tiempo_web": "seg. en la web",
-        "Converted": "convirtió"})
-    vista["acción sugerida"] = vista["prioridad"].map(U.ACCION)
-    st.dataframe(vista, width="stretch", hide_index=True,
-                 column_config={"score": st.column_config.ProgressColumn("score", min_value=0, max_value=100,
-                                                                         format="%.1f")})
-    st.download_button("⬇️ Descargar ranking (CSV)", vista.to_csv(index=False).encode("utf-8"),
+    r = r.sort_values("score", ascending=False)
+
+    seccion("Los 5 primeros de la lista", "Son los que ventas debería contactar hoy.")
+    tarjetas = ""
+    for i, (_, x) in enumerate(r.head(5).iterrows(), start=1):
+        tarjetas += (f'<div class="lead{" dark" if i == 1 else ""}"><div class="pos">Puesto {i}</div>'
+                     f'<div class="sc">{x["score"]:.1f}</div>'
+                     f'<div class="id">Lead {int(x[U.ID_COL])}</div>'
+                     f'<div class="meta">{x["fuente"]}<br>{x["ocupacion"]}</div>'
+                     f'<div class="mini"><div style="width:{x["score"]}%"></div></div></div>')
+    st.markdown(f'<div class="top5">{tarjetas}</div>', unsafe_allow_html=True)
+
+    seccion("Ranking completo")
+    vista = r.head(top_n)[["ranking", U.ID_COL, "score", "prioridad", "fuente", "origen", "ocupacion",
+                           "ultima_actividad", "tiempo_web", "visitas", "Converted"]].rename(columns={
+        "ranking": "Puesto", U.ID_COL: "Lead", "score": "Score", "prioridad": "Prioridad", "fuente": "Fuente",
+        "origen": "Origen", "ocupacion": "Ocupación", "ultima_actividad": "Última actividad",
+        "tiempo_web": "Segundos en la web", "visitas": "Visitas", "Converted": "Compró"})
+    vista["Acción sugerida"] = vista["Prioridad"].map(U.ACCION)
+    vista["Compró"] = vista["Compró"].map({1: "Sí", 0: "No"})
+    vista["Visitas"] = vista["Visitas"].fillna(0).astype(int)
+    st.dataframe(vista, width="stretch", hide_index=True, height=460,
+                 column_config={"Score": st.column_config.ProgressColumn("Score", min_value=0, max_value=100,
+                                                                         format="%.1f", color="#F5C935")})
+    st.download_button("Descargar ranking en CSV", vista.to_csv(index=False).encode("utf-8"),
                        "ranking_leads.csv", "text/csv")
-    st.caption("Los scores se calcularon con validación cruzada: cada lead fue puntuado por un modelo que no lo vio al entrenar.")
+    st.caption("Cada lead fue puntuado por un modelo que no lo vio al entrenar (validación cruzada de 5 pliegues).")
 
-# ======================= PRIORIZACIÓN =======================
+# ============================================================
+# PRIORIZACIÓN
+# ============================================================
 with tab_prio:
-    st.subheader("🎯 Sistema de priorización")
-    a, b, c = st.columns(3)
-    for col, p in zip((a, b, c), ORDEN_PRIO):
+    seccion("Los tres niveles de prioridad", "El score de cada lead define qué hace ventas con él.")
+    cols = st.columns(3, gap="small")
+    estilos = {
+        "🔥 Caliente": (f"background:{YEL};color:{INK}", f"background:{CARBON};color:#fff"),
+        "🌤️ Tibio": (f"background:{CARBON};color:#fff", f"background:{YEL};color:{INK}"),
+        "❄️ Frío": ("background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.95);color:#1F1F1F",
+                   f"background:{CARBON};color:#fff"),
+    }
+    for col, p in zip(cols, ORDEN_PRIO):
         sub = dff[dff["prioridad"] == p]
-        col.markdown(f"### {p}")
-        col.markdown({"🔥 Caliente": "Score ≥ 80", "🌤️ Tibio": "Score 50 – 79", "❄️ Frío": "Score < 50"}[p])
-        col.metric("Leads", f"{len(sub):,}")
-        col.metric("Conversión real", f"{sub['Converted'].mean()*100:.1f}%" if len(sub) else "-")
-        col.info(U.ACCION[p])
+        conv = f"{sub['Converted'].mean()*100:.0f}%" if len(sub) else "-"
+        caja, accion = estilos[p]
+        col.markdown(f"""
+        <div class="nivel" style="{caja}">
+          <h4>{NOMBRE[p]}</h4>
+          <div class="r">{RANGO[p]}</div>
+          <div class="fila">
+            <div><div class="v">{len(sub):,}</div><div class="k">leads</div></div>
+            <div><div class="v">{conv}</div><div class="k">conversión real</div></div>
+          </div>
+          <div class="acc" style="{accion}">{U.ACCION[p]}</div>
+        </div>""", unsafe_allow_html=True)
 
-    st.divider()
-    st.subheader("➕ Calificar un lead nuevo")
+    seccion("Calificar un lead nuevo", "Llena los datos del lead y el modelo calcula su score al instante.")
     with st.form("nuevo_lead"):
-        f1, f2, f3 = st.columns(3)
+        f1, f2, f3 = st.columns(3, gap="medium")
         origen = f1.selectbox("Origen del lead", CATS["origen"])
         fuente = f1.selectbox("Fuente", CATS["fuente"])
         ocup = f1.selectbox("Ocupación", CATS["ocupacion"], index=CATS["ocupacion"].index("Unemployed"))
@@ -220,8 +548,8 @@ with tab_prio:
         ciudad = f3.selectbox("Ciudad", CATS["ciudad"])
         g1, g2 = st.columns(2)
         no_email = g1.checkbox("No desea recibir emails")
-        copia = g2.checkbox("Pidió copia gratis de 'Mastering The Interview'")
-        enviar = st.form_submit_button("Calcular score", type="primary")
+        copia = g2.checkbox("Pidió la copia gratis de 'Mastering The Interview'")
+        enviar = st.form_submit_button("Calcular score")
 
     if enviar:
         raw = pd.DataFrame([{
@@ -234,65 +562,71 @@ with tab_prio:
             "A free copy of Mastering The Interview": "Yes" if copia else "No",
         }])
         res = puntuar(raw).iloc[0]
-        r1, r2 = st.columns([1, 2])
-        gauge = go.Figure(go.Indicator(mode="gauge+number", value=res["score"], number={"suffix": "%"},
-                                       title={"text": "Probabilidad de conversión"},
-                                       gauge={"axis": {"range": [0, 100]}, "bar": {"color": COLORES[res["prioridad"]]},
-                                              "steps": [{"range": [0, 50], "color": "#dbeafe"},
-                                                        {"range": [50, 80], "color": "#fef3c7"},
-                                                        {"range": [80, 100], "color": "#fee2e2"}]}))
-        gauge.update_layout(height=260, margin=dict(t=50, b=10))
-        r1.plotly_chart(gauge, width="stretch")
-        r2.markdown(f"## {res['prioridad']}")
-        r2.success(f"**Acción sugerida:** {res['acción sugerida']}")
+        color = YEL if res["prioridad"] == "🔥 Caliente" else (CARBON if res["prioridad"] == "🌤️ Tibio" else MUTED)
+        st.markdown(f"""
+        <div class="resultado">
+          {anillo(res['score'], f"{res['score']:.1f}%", "probabilidad", color=color, tam=170)}
+          <div>
+            <div class="t">Lead {SINGULAR[res['prioridad']]}</div>
+            <div class="a">{res['acción sugerida']}</div>
+          </div>
+        </div>""", unsafe_allow_html=True)
 
-    st.divider()
-    st.subheader("📂 Calificar un lote de leads (CSV)")
-    st.caption("Sube un CSV con las mismas columnas del dataset original de Kaggle (Leads.csv).")
-    archivo = st.file_uploader("Archivo CSV", type="csv")
+    seccion("Calificar varios leads a la vez",
+            "Sube un CSV con las mismas columnas del archivo original Leads.csv de Kaggle.")
+    archivo = st.file_uploader("Archivo CSV", type="csv", label_visibility="collapsed")
     if archivo is not None:
         try:
             lote = puntuar(pd.read_csv(archivo))
-            cols = [c for c in ["Lead Number", "Prospect ID"] if c in lote.columns] + ["score", "prioridad", "acción sugerida"]
-            st.dataframe(lote[cols], width="stretch", hide_index=True)
-            st.download_button("⬇️ Descargar resultados", lote.to_csv(index=False).encode("utf-8"),
+            cols_l = [c for c in ["Lead Number", "Prospect ID"] if c in lote.columns] + ["score", "prioridad", "acción sugerida"]
+            st.dataframe(lote[cols_l], width="stretch", hide_index=True)
+            st.download_button("Descargar leads calificados", lote.to_csv(index=False).encode("utf-8"),
                                "leads_calificados.csv", "text/csv")
         except KeyError as e:
-            st.error(f"Al CSV le falta la columna {e}. Usa el formato de Leads.csv.")
+            st.error(f"Al CSV le falta la columna {e}. Usa las columnas de Leads.csv y vuelve a subirlo.")
 
-# ======================= MODELO =======================
+# ============================================================
+# MODELO
+# ============================================================
 with tab_mod:
-    st.subheader("🧠 Evaluación de los modelos")
-    st.markdown(f"Mejor modelo: **{MET['mejor_modelo']}**. ROC-AUC train **{MET['auc_train']}** · "
-                f"test **{MET['auc_test']}** (diferencia pequeña → sin overfitting relevante).")
+    seccion("Comparación de modelos",
+            f"Ganó {MET['mejor_modelo']}. ROC-AUC de {MET['auc_train']} en entrenamiento y {MET['auc_test']} en prueba: "
+            "la diferencia es pequeña, así que no hay sobreajuste relevante.")
     comp = pd.DataFrame(MET["comparacion"])
     st.dataframe(comp.style.format({c: "{:.4f}" for c in comp.columns if c != "Modelo"})
-                 .highlight_max(subset=[c for c in comp.columns if c != "Modelo"], color="#bbf7d0"),
+                 .highlight_max(subset=[c for c in comp.columns if c != "Modelo"], color=YEL_SOFT),
                  width="stretch", hide_index=True)
+    st.write("")
 
-    m1, m2 = st.columns(2)
+    m1, m2 = st.columns(2, gap="small")
     with m1:
         fig = go.Figure()
+        estilos_roc = {MET["mejor_modelo"]: dict(color=YEL, width=3.5)}
+        otros = iter([dict(color=CARBON, width=1.8), dict(color=MUTED, width=1.6), dict(color=GRIS, width=1.6)])
         for nombre, cur in MET["curvas_roc"].items():
             auc = comp.set_index("Modelo").loc[nombre, "ROC-AUC"]
-            fig.add_trace(go.Scatter(x=cur["fpr"], y=cur["tpr"], name=f"{nombre} ({auc:.3f})"))
-        fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], name="Azar (0.5)", line=dict(dash="dash", color="gray")))
+            fig.add_trace(go.Scatter(x=cur["fpr"], y=cur["tpr"], name=f"{nombre} ({auc:.3f})",
+                                     line=estilos_roc.get(nombre) or next(otros)))
+        fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], name="Azar (0.500)", line=dict(dash="dot", color=GRIS, width=1.2)))
         fig.update_layout(title="Curvas ROC", xaxis_title="Tasa de falsos positivos", yaxis_title="Recall",
-                          legend=dict(x=0.45, y=0.05))
-        st.plotly_chart(fig, width="stretch")
+                          legend=dict(x=0.4, y=0.05))
+        grafica(fig, 420)
     with m2:
         cm = np.array(MET["matriz_confusion"])
-        fig = px.imshow(cm, text_auto=True, color_continuous_scale="Blues",
-                        x=["Pred: No", "Pred: Sí"], y=["Real: No", "Real: Sí"],
-                        title=f"Matriz de confusión ({MET['mejor_modelo']}, umbral 0.5)")
-        st.plotly_chart(fig, width="stretch")
+        fig = px.imshow(cm, text_auto=True, color_continuous_scale=[[0, "#FFF8E1"], [1, YEL]],
+                        x=["Predijo: no compra", "Predijo: compra"], y=["Real: no compró", "Real: compró"])
+        fig.update_traces(textfont=dict(size=26, family=FUENTE), xgap=6, ygap=6)
+        fig.update_layout(title=f"Matriz de confusión ({MET['mejor_modelo']}, umbral 0.5)", coloraxis_showscale=False)
+        grafica(fig, 420)
 
     imp = pd.Series(MET["importancia"]).sort_values()
-    fig = px.bar(imp, orientation="h", title="Variables más importantes",
-                 labels={"value": "Importancia", "index": ""}, color_discrete_sequence=["#2563eb"])
-    fig.update_layout(showlegend=False, height=480)
-    st.plotly_chart(fig, width="stretch")
-    with st.expander("Hiperparámetros encontrados (RandomizedSearchCV, CV 5 pliegues)"):
+    colores = [YEL if i == len(imp) - 1 else CARBON for i in range(len(imp))]
+    fig = go.Figure(go.Bar(x=imp.values, y=imp.index, orientation="h", marker_color=colores,
+                           marker_cornerradius=6, width=0.6))
+    fig.update_layout(title="Variables que más pesan en la predicción", xaxis_title="Importancia",
+                      yaxis=dict(showgrid=False))
+    grafica(fig, 500)
+    with st.expander("Hiperparámetros encontrados (RandomizedSearchCV, validación cruzada de 5 pliegues)"):
         st.json(MET["mejores_parametros"])
     with st.expander("Columnas eliminadas y motivo (incluye fuga de datos)"):
         st.table(pd.DataFrame.from_dict(U.DROP_REASONS, orient="index", columns=["Motivo"]))
