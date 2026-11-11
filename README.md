@@ -112,7 +112,8 @@ lead-scoring-app/
 ├── .streamlit/config.toml       # Tema de la app
 ├── data/
 │   ├── Leads.csv                # Dataset original (Kaggle)
-│   └── leads_scored.csv         # Leads con score, prioridad y ranking (generado)
+│   ├── leads_scored.csv         # Leads con score, prioridad y ranking (generado)
+│   └── leads_nuevos_demo.csv    # 15 leads nuevos de ejemplo para probar la calificación por lote
 ├── models/
 │   ├── modelo_lead_scoring.pkl  # Pipeline final: preprocesamiento + XGBoost
 │   ├── metricas.json            # Métricas, curvas ROC, matriz e importancia

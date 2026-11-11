@@ -1,0 +1,16 @@
+Prospect ID,Lead Number,Lead Origin,Lead Source,Do Not Email,TotalVisits,Total Time Spent on Website,Page Views Per Visit,Last Activity,Specialization,What is your current occupation,City,A free copy of Mastering The Interview
+demo-001,700001,Lead Add Form,Reference,No,0,0,0,SMS Sent,Finance Management,Working Professional,Mumbai,No
+demo-002,700002,Landing Page Submission,Google,No,5,1450,3,SMS Sent,Marketing Management,Working Professional,Thane & Outskirts,No
+demo-003,700003,Lead Add Form,Welingak Website,No,0,0,0,Email Opened,Select,Select,Select,No
+demo-004,700004,API,Organic Search,No,4,1320,4,SMS Sent,Human Resource Management,Unemployed,Mumbai,No
+demo-005,700005,Landing Page Submission,Direct Traffic,No,6,1650,6,Email Opened,Operations Management,Working Professional,Other Cities,Yes
+demo-006,700006,API,Google,No,3,900,3,Email Opened,Business Administration,Unemployed,Mumbai,No
+demo-007,700007,Landing Page Submission,Direct Traffic,No,4,750,2,Email Link Clicked,IT Projects Management,Unemployed,Other Metro Cities,Yes
+demo-008,700008,API,Direct Traffic,No,3,500,2,SMS Sent,"Banking, Investment And Insurance",Unemployed,Mumbai,No
+demo-009,700009,API,Direct Traffic,No,3,500,2,Email Opened,"Banking, Investment And Insurance",Working Professional,Mumbai,No
+demo-010,700010,API,Direct Traffic,No,3,1500,2,Email Opened,"Banking, Investment And Insurance",Unemployed,Mumbai,No
+demo-011,700011,API,Olark Chat,No,0,0,0,Olark Chat Conversation,Select,Unemployed,Select,No
+demo-012,700012,Landing Page Submission,Direct Traffic,Yes,2,120,2,Email Bounced,Media and Advertising,Unemployed,Thane & Outskirts,Yes
+demo-013,700013,API,Olark Chat,No,1,60,1,Olark Chat Conversation,Select,Select,Select,No
+demo-014,700014,Landing Page Submission,Google,No,8,240,4,Page Visited on Website,Travel and Tourism,Unemployed,Other Cities,Yes
+demo-015,700015,API,Referral Sites,No,2,180,2,Converted to Lead,Select,Unemployed,Mumbai,No
